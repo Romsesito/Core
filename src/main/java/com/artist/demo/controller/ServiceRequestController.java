@@ -29,10 +29,10 @@ public class ServiceRequestController {
         try {
             ServiceRequestDTO createdRequest = serviceRequestService.createServiceRequest(createDTO);
             return new ResponseEntity<>(createdRequest, HttpStatus.CREATED);
-        } catch (ResourceNotFoundException e) { // Ej: si el clientId o skillId no existen
+        } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (Exception e) { // Captura general
-            // Loggear el error e.printStackTrace();
+        } catch (Exception e) {
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al crear el pedido de servicio: " + e.getMessage());
         }
     }

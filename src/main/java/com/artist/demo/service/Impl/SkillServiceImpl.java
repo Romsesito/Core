@@ -57,7 +57,7 @@ public class SkillServiceImpl implements SkillService {
         Skill existingSkill = skillRepository.findById(skillId)
                 .orElseThrow(() -> new ResourceNotFoundException("Habilidad", "id", skillId.toString()));
 
-        // Verifica si el nuevo nombre ya existe en OTRA habilidad diferente a la actual
+
         skillRepository.findByName(skillDTO.getName()).ifPresent(skillWithSameName -> {
             if (!skillWithSameName.getId().equals(skillId)) {
                 throw new SkillNameAlreadyExistsException("Otra habilidad con el nombre '" + skillDTO.getName() + "' ya existe.");
