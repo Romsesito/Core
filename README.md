@@ -1,6 +1,6 @@
 # Backend Development: Plataforma de Comisiones de Arte
 
-#MEJORAS DE PATRONES DE DISEÑO CORE - NUEVA ASIGNACION:
+# MEJORAS DE PATRONES DE DISEÑO CORE - NUEVA ASIGNACION:
 
 VIDEO: https://www.youtube.com/watch?v=Jz-wHDM7fNU 
 DEPLOY: https://frontcoreartist.onrender.com 
