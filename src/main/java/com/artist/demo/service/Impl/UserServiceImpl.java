@@ -10,6 +10,7 @@ import com.artist.demo.exception.InvalidCredentialsException;
 import com.artist.demo.exception.ResourceNotFoundException;
 import com.artist.demo.exception.CustomUsernameNotFoundException;
 import com.artist.demo.exception.UsernameAlreadyExistsException;
+import com.artist.demo.factory.UserFactory;
 import com.artist.demo.repository.UserRepository;
 import com.artist.demo.service.UserService;
 import org.modelmapper.ModelMapper;
@@ -26,30 +27,27 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
+    private final UserFactory userFactory;
 
     @Autowired
     public UserServiceImpl(UserRepository userRepository,
-                           ModelMapper modelMapper) {
+            ModelMapper modelMapper, UserFactory userFactory) {
         this.userRepository = userRepository;
         this.modelMapper = modelMapper;
+        this.userFactory = userFactory;
     }
 
     @Override
     public UserDTO registerUser(UserRegistrationDTO registrationDTO) {
         if (userRepository.existsByUsername(registrationDTO.getUsername())) {
-            throw new UsernameAlreadyExistsException("El nombre de usuario '" + registrationDTO.getUsername() + "' ya existe.");
+            throw new UsernameAlreadyExistsException(
+                    "El nombre de usuario '" + registrationDTO.getUsername() + "' ya existe.");
         }
         if (userRepository.existsByEmail(registrationDTO.getEmail())) {
             throw new EmailAlreadyExistsException("El email '" + registrationDTO.getEmail() + "' ya está registrado.");
         }
 
-        User user = new User();
-        user.setUsername(registrationDTO.getUsername());
-        user.setEmail(registrationDTO.getEmail());
-
-        user.setPassword(registrationDTO.getPassword());
-        user.setRole(registrationDTO.getRole());
-        user.setEnabled(true);
+        User user = userFactory.createUser(registrationDTO);
 
         User savedUser = userRepository.save(user);
 
@@ -61,7 +59,6 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByUsername(loginRequestDTO.getUsername())
                 .orElseThrow(() -> new CustomUsernameNotFoundException("Usuario o contraseña inválidos."));
 
-
         if (loginRequestDTO.getPassword().equals(user.getPassword())) {
             return modelMapper.map(user, UserDTO.class);
         } else {
@@ -72,17 +69,19 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDTO findUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", id.toString())); // Asegúrate que fieldValue sea String
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", id.toString())); // Asegúrate que
+                                                                                                   // fieldValue sea
+                                                                                                   // String
         return modelMapper.map(user, UserDTO.class);
     }
 
     @Override
     public UserDTO findUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new CustomUsernameNotFoundException("Usuario no encontrado con el nombre de usuario: " + username));
+                .orElseThrow(() -> new CustomUsernameNotFoundException(
+                        "Usuario no encontrado con el nombre de usuario: " + username));
         return modelMapper.map(user, UserDTO.class);
     }
-
 
     @Override
     public List<UserDTO> findUsersByRole(Role role) {
@@ -91,9 +90,6 @@ public class UserServiceImpl implements UserService {
                 .map(user -> modelMapper.map(user, UserDTO.class))
                 .collect(Collectors.toList());
     }
-
-
-
 
     @Override
     @Transactional(readOnly = true)

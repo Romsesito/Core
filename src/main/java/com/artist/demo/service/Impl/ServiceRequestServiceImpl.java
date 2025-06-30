@@ -14,14 +14,15 @@ import com.artist.demo.repository.RequestSkillRequirementRepository;
 import com.artist.demo.repository.ServiceRequestRepository;
 import com.artist.demo.repository.SkillRepository;
 import com.artist.demo.repository.UserRepository;
-import com.artist.demo.service.ServiceRequestService;
+import com.artist.demo.service.ArtistRequestService;
+import com.artist.demo.service.ClientRequestService;
+import com.artist.demo.service.OwnerRequestService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.artist.demo.dto.ServiceRequestStatusUpdateDTO;
 import com.artist.demo.enums.Role;
-
 
 import java.util.HashSet;
 import java.util.List;
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
-public class ServiceRequestServiceImpl implements ServiceRequestService {
+public class ServiceRequestServiceImpl implements ClientRequestService, OwnerRequestService, ArtistRequestService {
 
     private final ServiceRequestRepository serviceRequestRepository;
     private final UserRepository userRepository;
@@ -40,10 +41,10 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
 
     @Autowired
     public ServiceRequestServiceImpl(ServiceRequestRepository serviceRequestRepository,
-                                     UserRepository userRepository,
-                                     SkillRepository skillRepository,
-                                     RequestSkillRequirementRepository requestSkillRequirementRepository,
-                                     ModelMapper modelMapper) {
+            UserRepository userRepository,
+            SkillRepository skillRepository,
+            RequestSkillRequirementRepository requestSkillRequirementRepository,
+            ModelMapper modelMapper) {
         this.serviceRequestRepository = serviceRequestRepository;
         this.userRepository = userRepository;
         this.skillRepository = skillRepository;
@@ -56,8 +57,6 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         User client = userRepository.findById(createDTO.getClientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", "id", createDTO.getClientId().toString()));
 
-
-
         ServiceRequest serviceRequest = new ServiceRequest();
         serviceRequest.setClient(client);
         serviceRequest.setTitle(createDTO.getTitle());
@@ -65,14 +64,14 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         serviceRequest.setDesiredCompletionDate(createDTO.getDesiredCompletionDate());
         serviceRequest.setStatus(RequestStatus.PENDING_APPROVAL);
 
-
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
 
         if (createDTO.getSkillRequirements() != null && !createDTO.getSkillRequirements().isEmpty()) {
             Set<RequestSkillRequirement> requirements = new HashSet<>();
             for (RequestSkillRequirementDTO reqDto : createDTO.getSkillRequirements()) {
                 Skill skill = skillRepository.findById(reqDto.getSkillId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Habilidad", "id", reqDto.getSkillId().toString()));
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Habilidad", "id", reqDto.getSkillId().toString()));
 
                 RequestSkillRequirement requirement = new RequestSkillRequirement();
                 requirement.setServiceRequest(savedRequest);
@@ -105,7 +104,8 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido de Servicio", "id", requestId.toString()));
 
         if (!request.getClient().getId().equals(clientId)) {
-            // Podrías lanzar una excepción diferente si el pedido existe pero no pertenece al cliente
+            // Podrías lanzar una excepción diferente si el pedido existe pero no pertenece
+            // al cliente
             throw new ForbiddenAccessException("No tienes permiso para ver este pedido de servicio.");
         }
         return modelMapper.map(request, ServiceRequestDTO.class);
@@ -137,7 +137,9 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido de Servicio", "id", requestId.toString()));
 
         if (request.getStatus() != RequestStatus.PENDING_APPROVAL) {
-            throw new IllegalStateException("Solo se pueden aprobar pedidos que están pendientes de aprobación. Estado actual: " + request.getStatus());
+            throw new IllegalStateException(
+                    "Solo se pueden aprobar pedidos que están pendientes de aprobación. Estado actual: "
+                            + request.getStatus());
         }
         request.setStatus(RequestStatus.PENDING_ASSIGNMENT);
         ServiceRequest updatedRequest = serviceRequestRepository.save(request);
@@ -156,7 +158,9 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         }
 
         if (request.getStatus() != RequestStatus.PENDING_ASSIGNMENT) {
-            throw new IllegalStateException("Solo se pueden asignar artistas a pedidos que están pendientes de asignación. Estado actual: " + request.getStatus());
+            throw new IllegalStateException(
+                    "Solo se pueden asignar artistas a pedidos que están pendientes de asignación. Estado actual: "
+                            + request.getStatus());
         }
 
         request.setAssignedArtist(artist);
@@ -166,7 +170,8 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
     }
 
     @Override
-    public ServiceRequestDTO updateServiceRequestStatusByOwner(Long requestId, ServiceRequestStatusUpdateDTO statusUpdateDTO) {
+    public ServiceRequestDTO updateServiceRequestStatusByOwner(Long requestId,
+            ServiceRequestStatusUpdateDTO statusUpdateDTO) {
         ServiceRequest request = serviceRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido de Servicio", "id", requestId.toString()));
 
@@ -184,8 +189,8 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         }
 
         List<ServiceRequest> requests;
-        List<RequestStatus> statusesToFilter = statusFilter != null ? List.of(statusFilter) : List.of(RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS, RequestStatus.WAITING_CLIENT_REVIEW);
-
+        List<RequestStatus> statusesToFilter = statusFilter != null ? List.of(statusFilter)
+                : List.of(RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS, RequestStatus.WAITING_CLIENT_REVIEW);
 
         if (statusFilter != null) {
             requests = serviceRequestRepository.findByAssignedArtistAndStatusIn(artist, List.of(statusFilter));
@@ -195,41 +200,37 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
                     List.of(RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS, RequestStatus.WAITING_CLIENT_REVIEW));
         }
 
-
         return requests.stream()
                 .map(request -> modelMapper.map(request, ServiceRequestDTO.class))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public ServiceRequestDTO updateServiceRequestStatusByArtist(Long requestId, Long artistId, ServiceRequestStatusUpdateDTO statusUpdateDTO) {
+    public ServiceRequestDTO updateServiceRequestStatusByArtist(Long requestId, Long artistId,
+            ServiceRequestStatusUpdateDTO statusUpdateDTO) {
         ServiceRequest request = serviceRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido de Servicio", "id", requestId.toString()));
 
         User artist = userRepository.findById(artistId)
                 .orElseThrow(() -> new ResourceNotFoundException("Artista", "id", artistId.toString()));
 
-        if (request.getAssignedArtist() == null || !request.getAssignedArtist().getId().equals(artistId)) {
-            throw new ForbiddenAccessException("Este pedido no está asignado a usted o no existe la asignación.");
+        if (request.getAssignedArtist() == null || !request.getAssignedArtist().getId().equals(artist.getId())) {
+            throw new ForbiddenAccessException("No tienes permiso para actualizar este pedido de servicio.");
         }
 
-        // Lógica de transiciones de estado permitidas para el Artista
+        // Lógica de validación de transición de estado
         RequestStatus currentStatus = request.getStatus();
         RequestStatus newStatus = statusUpdateDTO.getNewStatus();
 
-        boolean isValidTransition = false;
-        if (currentStatus == RequestStatus.ASSIGNED && newStatus == RequestStatus.IN_PROGRESS) {
-            isValidTransition = true;
-        } else if (currentStatus == RequestStatus.IN_PROGRESS && newStatus == RequestStatus.WAITING_CLIENT_REVIEW) {
-            isValidTransition = true;
-        }
-        // Un artista podría también cancelar si se le permite, o ponerlo en pausa, etc.
-        // else if (currentStatus == RequestStatus.IN_PROGRESS && newStatus == RequestStatus.CANCELLED_BY_ARTIST) {
-        //    isValidTransition = true;
-        // }
+        boolean isValidTransition = switch (currentStatus) {
+            case ASSIGNED -> newStatus == RequestStatus.IN_PROGRESS;
+            case IN_PROGRESS -> newStatus == RequestStatus.WAITING_CLIENT_REVIEW;
+            default -> false;
+        };
 
         if (!isValidTransition) {
-            throw new IllegalStateException("Transición de estado inválida para el artista: de " + currentStatus + " a " + newStatus);
+            throw new IllegalStateException(
+                    "La transición del estado '" + currentStatus + "' a '" + newStatus + "' no está permitida.");
         }
 
         request.setStatus(newStatus);
@@ -237,7 +238,6 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         return modelMapper.map(updatedRequest, ServiceRequestDTO.class);
     }
 }
-    // Implementaciones para Artista vendrán después...
+// Implementaciones para Artista vendrán después...
 
-
-    // Implementaciones para Owner y Artist vendrán después...
+// Implementaciones para Owner y Artist vendrán después...

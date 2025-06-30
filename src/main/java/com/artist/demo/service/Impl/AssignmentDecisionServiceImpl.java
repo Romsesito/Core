@@ -12,6 +12,7 @@ import com.artist.demo.repository.ArtistSkillRepository;
 import com.artist.demo.repository.ServiceRequestRepository;
 import com.artist.demo.repository.UserRepository;
 import com.artist.demo.service.AssignmentDecisionService;
+import com.artist.demo.service.scoring.ScoringStrategy;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,16 +32,19 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
     private final UserRepository userRepository;
     private final ArtistSkillRepository artistSkillRepository;
     private final ModelMapper modelMapper;
+    private final List<ScoringStrategy> scoringStrategies;
 
     @Autowired
     public AssignmentDecisionServiceImpl(ServiceRequestRepository serviceRequestRepository,
-                                         UserRepository userRepository,
-                                         ArtistSkillRepository artistSkillRepository,
-                                         ModelMapper modelMapper) {
+            UserRepository userRepository,
+            ArtistSkillRepository artistSkillRepository,
+            ModelMapper modelMapper,
+            List<ScoringStrategy> scoringStrategies) {
         this.serviceRequestRepository = serviceRequestRepository;
         this.userRepository = userRepository;
         this.artistSkillRepository = artistSkillRepository;
         this.modelMapper = modelMapper;
+        this.scoringStrategies = scoringStrategies;
     }
 
     @Override
@@ -61,7 +65,6 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
             ArtistAssignmentProspectDTO prospect = new ArtistAssignmentProspectDTO();
             prospect.setArtistInfo(artistInfo);
 
-
             List<ArtistSkill> artistActualSkills = artistSkillRepository.findByArtistId(artistEntity.getId());
             Map<Long, ArtistSkill> artistSkillMap = artistActualSkills.stream()
                     .collect(Collectors.toMap(as -> as.getSkill().getId(), as -> as));
@@ -69,7 +72,6 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
             List<MatchedSkillDTO> skillMatches = new ArrayList<>();
             List<RequestSkillRequirementDTO> missingEssential = new ArrayList<>();
             List<RequestSkillRequirementDTO> missingDesirable = new ArrayList<>();
-            int essentialSkillsMet = 0;
 
             for (RequestSkillRequirement req : requiredSkills) {
                 ArtistSkill artistSkill = artistSkillMap.get(req.getSkill().getId());
@@ -84,9 +86,7 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
                     boolean meetsLevel = artistSkill.getLevel().ordinal() >= req.getRequiredLevel().ordinal();
                     match.setPerfectMatch(meetsLevel);
                     match.setPartialMatch(!meetsLevel);
-                    if (meetsLevel && req.getPriority() == com.artist.demo.enums.SkillPriority.ESSENTIAL) {
-                        essentialSkillsMet++;
-                    }
+
                 } else {
                     match.setArtistLevel(null);
                     match.setPerfectMatch(false);
@@ -104,11 +104,12 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
             prospect.setMissingDesirableSkills(missingDesirable);
 
             List<RequestStatus> activeStatuses = List.of(RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS);
-            List<ServiceRequest> activeRequestsForArtist = serviceRequestRepository.findByAssignedArtistAndStatusIn(artistEntity, activeStatuses);
+            List<ServiceRequest> activeRequestsForArtist = serviceRequestRepository
+                    .findByAssignedArtistAndStatusIn(artistEntity, activeStatuses);
             prospect.setCurrentActiveProjects(activeRequestsForArtist.size());
 
             if (missingEssential.isEmpty()) {
-                double score = calculateMatchScore(skillMatches, missingDesirable.size(), prospect.getCurrentActiveProjects(), artistEntity.getArtistProfile() != null ? artistEntity.getArtistProfile().getMaxConcurrentProjects() : 3);
+                double score = calculateMatchScore(prospect, artistEntity);
                 prospect.setOverallMatchScore(score);
                 prospects.add(prospect);
             }
@@ -118,46 +119,16 @@ public class AssignmentDecisionServiceImpl implements AssignmentDecisionService 
         return prospects;
     }
 
-    private double calculateMatchScore(List<MatchedSkillDTO> skillMatches, int missingDesirableCount, int currentLoad, int maxLoad) {
-        double score = 0;
-        int essentialMet = 0;
-        int totalEssential = 0;
-        int desirableMet = 0;
-        int totalDesirable = 0;
-
-        for (MatchedSkillDTO match : skillMatches) {
-            if (match.getPriority() == com.artist.demo.enums.SkillPriority.ESSENTIAL) {
-                totalEssential++;
-                if (match.isPerfectMatch()) {
-                    essentialMet++;
-                    score += 10;
-                    score += (match.getArtistLevel().ordinal() - match.getRequiredLevel().ordinal()) * 2;
-                } else if (match.isPartialMatch()) {
-                    score += 2;
-                }
-            } else if (match.getPriority() == com.artist.demo.enums.SkillPriority.DESIRABLE) {
-                totalDesirable++;
-                if (match.isPerfectMatch()) {
-                    desirableMet++;
-                    score += 5;
-                    score += (match.getArtistLevel().ordinal() - match.getRequiredLevel().ordinal());
-                } else if (match.isPartialMatch()) {
-                    score += 1;
-                }
-            }
+    private double calculateMatchScore(ArtistAssignmentProspectDTO prospect, User artist) {
+        if (!prospect.getMissingEssentialSkills().isEmpty()) {
+            return -1; // O un valor que indique que no es un candidato viable
         }
 
-        if (totalEssential > 0 && essentialMet < totalEssential) {
-            return -1000;
+        double totalScore = 0;
+        for (ScoringStrategy strategy : scoringStrategies) {
+            totalScore += strategy.calculateScore(prospect, artist);
         }
-
-        score -= missingDesirableCount * 2;
-
-        if (currentLoad >= maxLoad) {
-            score -= 10;
-        } else if (currentLoad > 0) {
-            score -= (double) currentLoad / maxLoad * 5;
-        }
-        return Math.max(0, score);
+        return Math.max(0, totalScore);
     }
+
 }

@@ -10,7 +10,7 @@ import com.artist.demo.enums.Role;
 import com.artist.demo.exception.ForbiddenAccessException;
 import com.artist.demo.exception.ResourceNotFoundException;
 import com.artist.demo.service.ArtistProfileService;
-import com.artist.demo.service.ServiceRequestService;
+import com.artist.demo.service.ArtistRequestService;
 import com.artist.demo.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,24 +20,22 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/artists")
 public class ArtistController {
 
     private final ArtistProfileService artistProfileService;
     private final UserService userService;
-    private final ServiceRequestService serviceRequestService;
+    private final ArtistRequestService artistRequestService;
 
     @Autowired
     public ArtistController(ArtistProfileService artistProfileService,
-                            UserService userService,
-                            ServiceRequestService serviceRequestService) {
+            UserService userService,
+            ArtistRequestService artistRequestService) {
         this.artistProfileService = artistProfileService;
         this.userService = userService;
-        this.serviceRequestService = serviceRequestService;
+        this.artistRequestService = artistRequestService;
     }
-
 
     @GetMapping
     public ResponseEntity<List<UserDTO>> getAllArtists() {
@@ -45,7 +43,6 @@ public class ArtistController {
         List<UserDTO> artists = userService.findUsersByRole(Role.ARTIST);
         return ResponseEntity.ok(artists);
     }
-
 
     @GetMapping("/{artistId}/profile")
     public ResponseEntity<ArtistProfileDTO> getArtistProfile(@PathVariable Long artistId) {
@@ -59,10 +56,10 @@ public class ArtistController {
             @PathVariable Long artistId,
             @Valid @RequestBody ArtistProfileDTO artistProfileDTO) {
 
-        ArtistProfileDTO updatedProfile = artistProfileService.createOrUpdateArtistProfile(artistId, artistProfileDTO); // Usando createOrUpdate
+        ArtistProfileDTO updatedProfile = artistProfileService.createOrUpdateArtistProfile(artistId, artistProfileDTO); // Usando
+                                                                                                                        // createOrUpdate
         return ResponseEntity.ok(updatedProfile);
     }
-
 
     @PostMapping("/{artistId}/skills")
     public ResponseEntity<ArtistSkillDTO> addSkillToArtist(
@@ -84,7 +81,8 @@ public class ArtistController {
             @PathVariable Long artistId,
             @PathVariable Long artistSkillId,
             @Valid @RequestBody ArtistSkillDTO artistSkillDTO) {
-        ArtistSkillDTO updatedArtistSkill = artistProfileService.updateArtistSkill(artistId, artistSkillId, artistSkillDTO);
+        ArtistSkillDTO updatedArtistSkill = artistProfileService.updateArtistSkill(artistId, artistSkillId,
+                artistSkillDTO);
         return ResponseEntity.ok(updatedArtistSkill);
     }
 
@@ -96,40 +94,34 @@ public class ArtistController {
         return ResponseEntity.noContent().build();
     }
 
-
     @GetMapping("/{artistId}/assigned-requests")
-    public ResponseEntity<?> getAssignedRequests(
+    public ResponseEntity<List<ServiceRequestDTO>> getAssignedServiceRequests(
             @PathVariable Long artistId,
             @RequestParam(required = false) RequestStatus status) {
 
-        try {
-            List<ServiceRequestDTO> requests = serviceRequestService.getServiceRequestsByArtistId(artistId, status);
-            return ResponseEntity.ok(requests);
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IllegalArgumentException e) { // Si el ID no es de un artista
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
+        // Lógica para asegurar que solo el artista logueado o un admin puede ver esto
+        // (simplificado)
+        // UserDTO artist = userService.findUserById(artistId);
+
+        List<ServiceRequestDTO> requests = artistRequestService.getServiceRequestsByArtistId(artistId, status);
+        return ResponseEntity.ok(requests);
     }
 
-    @PutMapping("/{artistId}/service-requests/{requestId}/status")
-    public ResponseEntity<?> updateServiceRequestStatusByArtist(
+    /**
+     * Permite a un artista actualizar el estado de una solicitud de servicio que
+     * tiene asignada.
+     */
+    @PatchMapping("/{artistId}/assigned-requests/{requestId}/status")
+    public ResponseEntity<ServiceRequestDTO> updateServiceRequestStatus(
             @PathVariable Long artistId,
             @PathVariable Long requestId,
             @Valid @RequestBody ServiceRequestStatusUpdateDTO statusUpdateDTO) {
 
-        try {
-            ServiceRequestDTO updatedRequest = serviceRequestService.updateServiceRequestStatusByArtist(requestId, artistId, statusUpdateDTO);
-            return ResponseEntity.ok(updatedRequest);
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (ForbiddenAccessException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
+        // Aquí deberías tener una validación para asegurar que el usuario que hace la
+        // petición es el artista con artistId
+
+        ServiceRequestDTO updatedRequest = artistRequestService.updateServiceRequestStatusByArtist(requestId, artistId,
+                statusUpdateDTO);
+        return ResponseEntity.ok(updatedRequest);
     }
-
-
-
 }
