@@ -1,5 +1,10 @@
 # Backend Development: Plataforma de Comisiones de Arte
 
+#MEJORAS DE PATRONES DE DISEÑO CORE - NUEVA ASIGNACION:
+
+VIDEO: https://www.youtube.com/watch?v=Jz-wHDM7fNU 
+DEPLOY: https://frontcoreartist.onrender.com 
+
 ## 1. Resumen del Proyecto
 
 Este documento resume el desarrollo del backend para una plataforma de comisiones de arte. El sistema permite a clientes solicitar servicios de arte, a artistas ofrecer sus habilidades y tomar pedidos, y a un dueño de la plataforma gestionar el catálogo de habilidades, aprobar pedidos y facilitar la asignación de artistas a los trabajos. Una característica central es un motor de decisión para ayudar al dueño a asignar artistas comparando los requisitos del pedido con las habilidades y carga de trabajo de los artistas.
